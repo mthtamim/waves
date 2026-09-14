@@ -37,6 +37,10 @@ export class WaveRenderer {
     // Pool of reusable ring meshes
     this.ringPool = [];
     this.activeRingsCount = 0;
+
+    // Pool of reusable ray lines
+    this.rayPool = [];
+    this.activeRaysCount = 0;
   }
 
   setupAmplitudeField() {
@@ -147,41 +151,43 @@ export class WaveRenderer {
   updateFieldMesh(simTime, sources, walls, slits, isRefraction) {
     const posAttr = this.fieldGeometry.attributes.position;
     const colorAttr = this.fieldGeometry.attributes.color;
-    const vertex = new THREE.Vector3();
+    const posArr = posAttr.array;
+    const colArr = colorAttr.array;
+    const count = posAttr.count;
     const tempPos = { x: 0, y: 0, z: 0 };
+    const style = this.fieldRenderStyle;
 
-    for (let i = 0; i < posAttr.count; i++) {
-      vertex.fromBufferAttribute(posAttr, i);
-      tempPos.x = vertex.x;
-      tempPos.z = vertex.z;
+    for (let i = 0; i < count; i++) {
+      const idx = i * 3;
+      tempPos.x = posArr[idx];
+      tempPos.z = posArr[idx + 2];
 
       const displacement = WaveMath.evaluateSuperposition(sources, tempPos, simTime, walls, slits, isRefraction);
-      
-      posAttr.setY(i, displacement * 1.4);
+      posArr[idx + 1] = displacement * 1.4;
 
       let r = 0, g = 0, b = 0;
 
-      if (this.fieldRenderStyle === 'heatmap') {
+      if (style === 'heatmap') {
         // Feature 23: 3D Intensity Heatmap I = psi^2
         const intensity = Math.min(1.0, (displacement * displacement) / 2.5);
         r = Math.min(1.0, intensity * 1.6);
         g = Math.max(0, Math.min(1.0, (intensity - 0.25) * 1.5));
         b = Math.max(0, Math.min(1.0, (intensity - 0.65) * 2.5));
-      } else if (this.fieldRenderStyle === 'crest') {
+      } else if (style === 'crest') {
         // Feature 2: Crest Highlight
         if (displacement > 0.8) {
           r = 1.0; g = 0.85; b = 0.1; // Golden crests
         } else {
           r = 0.1; g = 0.15; b = 0.25;
         }
-      } else if (this.fieldRenderStyle === 'trough') {
+      } else if (style === 'trough') {
         // Feature 2: Trough Highlight
         if (displacement < -0.8) {
           r = 0.9; g = 0.15; b = 0.6; // Magenta troughs
         } else {
           r = 0.1; g = 0.15; b = 0.25;
         }
-      } else if (this.fieldRenderStyle === 'zero') {
+      } else if (style === 'zero') {
         // Feature 2: Zero-Crossing Nodal Lines
         if (Math.abs(displacement) < 0.1) {
           r = 0.1; g = 1.0; b = 0.4; // Neon green nodal lines
@@ -204,7 +210,9 @@ export class WaveRenderer {
         }
       }
 
-      colorAttr.setXYZ(i, r, g, b);
+      colArr[idx] = r;
+      colArr[idx + 1] = g;
+      colArr[idx + 2] = b;
     }
 
     posAttr.needsUpdate = true;
@@ -279,36 +287,53 @@ export class WaveRenderer {
   }
 
   updateRays(sources, walls) {
-    while (this.raysGroup.children.length > 0) {
-      const obj = this.raysGroup.children[0];
-      this.raysGroup.remove(obj);
-      if (obj.geometry) obj.geometry.dispose();
-      if (obj.material) obj.material.dispose();
-    }
-
+    this.activeRaysCount = 0;
     const numRays = 16;
+    const rayLen = 15;
+
     sources.forEach(src => {
       if (!src.active) return;
       const angleStep = (2 * Math.PI) / numRays;
+      const srcColor = src.color || 0x38bdf8;
+      const sx = src.position.x;
+      const sz = src.position.z;
 
       for (let i = 0; i < numRays; i++) {
         const theta = i * angleStep;
-        const dir = new THREE.Vector3(Math.cos(theta), 0, Math.sin(theta)).normalize();
-        const start = new THREE.Vector3(src.position.x, 0.3, src.position.z);
-        const rayLen = 15;
-        const end = start.clone().add(dir.clone().multiplyScalar(rayLen));
+        const cosT = Math.cos(theta);
+        const sinT = Math.sin(theta);
+        const ex = sx + cosT * rayLen;
+        const ez = sz + sinT * rayLen;
 
-        const points = [start, end];
-        const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
-        const lineMat = new THREE.LineBasicMaterial({
-          color: src.color || 0x38bdf8,
-          transparent: true,
-          opacity: 0.65
-        });
-
-        const line = new THREE.Line(lineGeo, lineMat);
-        this.raysGroup.add(line);
+        let line;
+        if (this.activeRaysCount < this.rayPool.length) {
+          line = this.rayPool[this.activeRaysCount];
+          line.visible = true;
+          const posAttr = line.geometry.attributes.position;
+          posAttr.setXYZ(0, sx, 0.3, sz);
+          posAttr.setXYZ(1, ex, 0.3, ez);
+          posAttr.needsUpdate = true;
+          line.material.color.set(srcColor);
+        } else {
+          const positions = new Float32Array([sx, 0.3, sz, ex, 0.3, ez]);
+          const lineGeo = new THREE.BufferGeometry();
+          lineGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+          const lineMat = new THREE.LineBasicMaterial({
+            color: srcColor,
+            transparent: true,
+            opacity: 0.65
+          });
+          line = new THREE.Line(lineGeo, lineMat);
+          this.raysGroup.add(line);
+          this.rayPool.push(line);
+        }
+        this.activeRaysCount++;
       }
     });
+
+    // Hide remaining pooled rays
+    for (let i = this.activeRaysCount; i < this.rayPool.length; i++) {
+      this.rayPool[i].visible = false;
+    }
   }
 }

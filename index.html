@@ -16,6 +16,12 @@
         navigator.serviceWorker.register('sw.js').catch(err => console.log('SW registration failed:', err));
       });
     }
+    window.addEventListener('error', (e) => {
+      console.error('WaveLab Runtime Error:', e);
+    });
+    window.addEventListener('unhandledrejection', (e) => {
+      console.error('WaveLab Unhandled Rejection:', e);
+    });
   </script>
 
   <!-- Modern ES Module Importmap for Three.js -->
@@ -39,18 +45,16 @@
   <header class="top-header">
     <div class="brand">
       <span class="brand-icon">🌊</span>
-      <div>
-        <h1>3D Wave & Acoustics Laboratory</h1>
-      </div>
+      <h1>Wave & Acoustics Lab</h1>
       <!-- Feature 7: Live Source Synchronization Status Badge -->
-      <span class="sync-badge" id="sync-status-badge" title="Source Coherence Status">🟢 Synchronized</span>
+      <span class="sync-badge" id="sync-status-badge" title="Source Coherence Status">🟢 Coherent</span>
     </div>
 
     <div class="header-center-controls">
-      <button class="btn-ctrl" id="btn-play">
+      <button class="btn-ctrl" id="btn-play" title="Play / Pause Simulation (Space)">
         <span>⏸</span> Pause
       </button>
-      <button class="btn-ctrl" id="btn-reset">
+      <button class="btn-ctrl" id="btn-reset" title="Reset Simulation Time (R)">
         <span>↻</span> Reset
       </button>
 
@@ -70,35 +74,40 @@
       </div>
 
       <div class="volume-ctrl">
-        <button class="btn-ctrl muted" id="btn-audio-toggle">
-          <span>🔇</span> Sound Off
+        <button class="btn-ctrl muted" id="btn-audio-toggle" title="Toggle Sound (M)">
+          <span>🔇</span> Sound
         </button>
         <input type="range" id="master-volume" min="0" max="1" step="0.05" value="0.5" title="Master Audio Volume">
       </div>
 
       <!-- Scope Panel & Custom Equation Toggles -->
-      <button class="btn-ctrl active" id="btn-toggle-scope" title="Toggle Bottom Oscilloscope Panel (গ্রাফ অন/অফ)">
+      <button class="btn-ctrl active" id="btn-toggle-scope" title="Toggle Oscilloscope Panel">
         <span>📈</span> Scope
       </button>
-      <button class="btn-ctrl" id="btn-custom-eq" title="Custom Mathematical Wave Formula (কাস্টম সমীকরণ)">
+      <button class="btn-ctrl" id="btn-custom-eq" title="Custom Mathematical Wave Formula">
         <span>✨</span> Custom Eq
       </button>
     </div>
 
-    <div class="wave-model-toggle-group">
-      <button class="btn-wave-model active" id="btn-model-ideal" title="Ideal Wave: Constant Amplitude, Zero Energy Loss (আদর্শ তরঙ্গ)">🌟 Ideal Wave</button>
-      <button class="btn-wave-model" id="btn-model-practical" title="Practical Wave: 1/r Distance Attenuation (ব্যবহারিক তরঙ্গ)">🌊 Practical Wave</button>
+    <div class="sim-speed-ctrl" title="Wave Attenuation Model">
+      <select id="select-wave-model" class="theme-dropdown" title="Wave Model">
+        <option value="ideal" selected>🌟 Ideal Wave</option>
+        <option value="practical">🌊 Practical (1/r)</option>
+      </select>
+    </div>
+
+    <div class="sim-speed-ctrl" title="3D Arena Visual Theme">
+      <select id="select-3d-theme" class="theme-dropdown" title="Visual Theme">
+        <option value="oceanic" selected>🌊 Oceanic</option>
+        <option value="cyberpunk">⚡ Cyberpunk</option>
+        <option value="plasma">🔥 Plasma</option>
+        <option value="emerald">🧪 Emerald</option>
+      </select>
     </div>
 
     <div class="dimension-toggle-group">
-      <button class="btn-dim-toggle active" id="btn-dim-3d" title="Switch to Full 3D Interactive Arena">🧊 3D Arena</button>
-      <button class="btn-dim-toggle" id="btn-dim-2d" title="Switch to 2D Academic Classroom (Textbook Graphs & Fringes)">📐 2D Classroom</button>
-    </div>
-
-    <div class="mode-toggle-group">
-      <button class="btn-toggle-mode active" id="btn-mode-guided">🎓 Guided</button>
-      <button class="btn-toggle-mode" id="btn-mode-free">🔬 Free Lab</button>
-      <button class="btn-toggle-mode" id="btn-mode-challenge">🏆 Challenge</button>
+      <button class="btn-dim-toggle active" id="btn-dim-3d" title="Switch to Full 3D Arena (Key: 1)">🧊 3D Arena</button>
+      <button class="btn-dim-toggle" id="btn-dim-2d" title="Switch to 2D Classroom (Key: 2)">📐 2D Classroom</button>
     </div>
   </header>
 
@@ -115,10 +124,7 @@
       <!-- Interactive Hints -->
       <div class="viewport-overlay-hints">
         <div class="hint-pill">
-          🖱️ <strong>Left Click + Drag:</strong> Orbit camera | <strong>Right Click:</strong> Pan | <strong>Scroll:</strong> Zoom
-        </div>
-        <div class="hint-pill">
-          🎯 <strong>Interactive:</strong> Click and drag sources or receiver. Use <strong>Space</strong> for Play/Pause, <strong>F</strong> to Focus!
+          🖱️ <strong>Orbit / Pan / Zoom</strong> &nbsp;|&nbsp; ⌨️ <strong>Space:</strong> Pause &nbsp;|&nbsp; <strong>R:</strong> Reset &nbsp;|&nbsp; <strong>1:</strong> 3D Arena &nbsp;|&nbsp; <strong>2:</strong> 2D Classroom
         </div>
       </div>
 
@@ -243,6 +249,15 @@
       <div class="readout-item">
         <span class="readout-label">Beat Frequency:</span>
         <span class="readout-val" id="readout-beat">None</span>
+      </div>
+
+      <!-- Real-time Acoustic Decibel SPL Meter -->
+      <div class="readout-item spl-meter-item" title="Sound Pressure Level (SPL) in Decibels (dB)">
+        <span class="readout-label">Acoustic SPL Meter:</span>
+        <div class="spl-display-row">
+          <span class="readout-val" id="readout-spl">74.2 dB</span>
+          <div class="spl-bar-track"><div class="spl-bar-fill" id="spl-bar-fill" style="width: 55%;"></div></div>
+        </div>
       </div>
 
       <!-- Scope Panel Action Controls -->
