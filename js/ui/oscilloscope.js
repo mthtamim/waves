@@ -101,7 +101,7 @@ export class Oscilloscope {
     const midY = h / 2;
     const yScale = h * 0.22; // Scale factor for amplitude ±2.5
 
-    const drawTrace = (dataArray, color, lineWidth, isDashed = false) => {
+    const drawTrace = (dataArray, color, lineWidth, isDashed = false, multiplier = 1.0) => {
       ctx.save();
       ctx.beginPath();
       ctx.strokeStyle = color;
@@ -114,7 +114,7 @@ export class Oscilloscope {
 
       for (let i = 0; i < len; i++) {
         const x = (i / (this.bufferLength - 1)) * w;
-        const y = midY - dataArray[i] * yScale;
+        const y = midY - (dataArray[i] * multiplier) * yScale;
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       }
@@ -135,10 +135,9 @@ export class Oscilloscope {
     // 3. Beat Envelope trace (Dashed Gold - only when beats actually exist)
     const hasActiveBeats = this.history.envelope.some(v => v > 0.05);
     if (this.showEnvelope && hasActiveBeats) {
-      drawTrace(this.history.envelope, '#fbbf24', 1.8, true);
-      // Mirrored bottom envelope
-      const negEnv = this.history.envelope.map(v => -v);
-      drawTrace(negEnv, '#fbbf24', 1.8, true);
+      drawTrace(this.history.envelope, '#fbbf24', 1.8, true, 1.0);
+      // Mirrored bottom envelope without allocating new array
+      drawTrace(this.history.envelope, '#fbbf24', 1.8, true, -1.0);
     }
 
     // 4. Resultant Superposition trace (Glowing Emerald/White)

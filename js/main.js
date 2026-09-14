@@ -433,23 +433,54 @@ class WaveLabApp {
     }
 
     eqChips.forEach(chip => {
-      chip.addEventListener('click', () => {
+      chip.addEventListener('click', (e) => {
+        e.preventDefault();
         const ins = chip.getAttribute('data-ins') || '';
-        inputCustomEq.value += (inputCustomEq.value ? ' ' : '') + ins;
-        inputCustomEq.focus();
+        if (inputCustomEq) {
+          const start = inputCustomEq.selectionStart ?? inputCustomEq.value.length;
+          const end = inputCustomEq.selectionEnd ?? inputCustomEq.value.length;
+          const val = inputCustomEq.value;
+          inputCustomEq.value = val.substring(0, start) + ins + val.substring(end);
+          const newPos = start + ins.length;
+          inputCustomEq.focus();
+          inputCustomEq.setSelectionRange(newPos, newPos);
+        }
       });
     });
 
     if (btnCustomEq && modalCustomEq) {
       btnCustomEq.addEventListener('click', () => {
         modalCustomEq.style.display = 'flex';
-        if (inputCustomEq) inputCustomEq.value = this.customEquationEngine.rawExpression;
+        if (inputCustomEq) {
+          inputCustomEq.value = this.customEquationEngine.rawExpression || '2.0 * sin(2*x - 4*t)';
+          setTimeout(() => {
+            inputCustomEq.focus();
+            inputCustomEq.select();
+          }, 60);
+        }
         if (customEqError) customEqError.style.display = 'none';
+      });
+    }
+
+    if (modalCustomEq) {
+      modalCustomEq.addEventListener('click', (e) => {
+        if (e.target === modalCustomEq) {
+          modalCustomEq.style.display = 'none';
+        }
       });
     }
 
     if (closeCustomEqBtn && modalCustomEq) {
       closeCustomEqBtn.addEventListener('click', () => modalCustomEq.style.display = 'none');
+    }
+
+    if (inputCustomEq) {
+      inputCustomEq.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (btnApplyCustomEq) btnApplyCustomEq.click();
+        }
+      });
     }
 
     if (btnApplyCustomEq && inputCustomEq) {
@@ -621,8 +652,10 @@ class WaveLabApp {
     WaveMath.waveModel = model;
     const btnIdeal = document.getElementById('btn-model-ideal');
     const btnPractical = document.getElementById('btn-model-practical');
+    const selModel = document.getElementById('select-wave-model');
     if (btnIdeal) btnIdeal.classList.toggle('active', model === 'ideal');
     if (btnPractical) btnPractical.classList.toggle('active', model === 'practical');
+    if (selModel && selModel.value !== model) selModel.value = model;
 
     if (this.academic2D) {
       this.academic2D.syncWaveModel(model);
@@ -639,11 +672,13 @@ class WaveLabApp {
     const volSlider = document.getElementById('master-volume');
     const btnModelIdeal = document.getElementById('btn-model-ideal');
     const btnModelPractical = document.getElementById('btn-model-practical');
+    const selWaveModel = document.getElementById('select-wave-model');
     const btnDim3D = document.getElementById('btn-dim-3d');
     const btnDim2D = document.getElementById('btn-dim-2d');
-    const btnModeGuided = document.getElementById('btn-mode-guided');
-    const btnModeFree = document.getElementById('btn-mode-free');
-    const btnModeChallenge = document.getElementById('btn-mode-challenge');
+
+    if (selWaveModel) {
+      selWaveModel.addEventListener('change', (e) => this.setWaveModel(e.target.value));
+    }
 
     if (btnModelIdeal) {
       btnModelIdeal.addEventListener('click', () => this.setWaveModel('ideal'));
@@ -685,39 +720,60 @@ class WaveLabApp {
       this.simSpeed = parseFloat(e.target.value) || 1.0;
     });
 
-    btnAudioToggle.addEventListener('click', async () => {
-      await this.audioEngine.init();
-      const isMuted = this.audioEngine.toggleMute();
-      btnAudioToggle.innerHTML = isMuted ? '<span>🔇</span> Sound Off' : '<span>🔊</span> Sound On';
-      btnAudioToggle.classList.toggle('muted', isMuted);
-    });
+    const select3dTheme = document.getElementById('select-3d-theme');
+    if (select3dTheme) {
+      select3dTheme.addEventListener('change', (e) => {
+        this.apply3DTheme(e.target.value);
+      });
+    }
 
-    volSlider.addEventListener('input', (e) => {
-      this.audioEngine.setMasterVolume(parseFloat(e.target.value));
-    });
+    if (btnAudioToggle) {
+      btnAudioToggle.addEventListener('click', async () => {
+        await this.audioEngine.init();
+        const isMuted = this.audioEngine.toggleMute();
+        btnAudioToggle.innerHTML = isMuted ? '<span>🔇</span> Sound Off' : '<span>🔊</span> Sound On';
+        btnAudioToggle.classList.toggle('muted', isMuted);
+      });
+    }
 
-    btnModeGuided.addEventListener('click', () => {
-      btnModeGuided.classList.add('active');
-      btnModeFree.classList.remove('active');
-      btnModeChallenge.classList.remove('active');
-      document.getElementById('tab-edu-btn').click();
-      this.eduGuide.setMode('guided');
-    });
+    if (volSlider) {
+      volSlider.addEventListener('input', (e) => {
+        this.audioEngine.setMasterVolume(parseFloat(e.target.value));
+      });
+    }
 
-    btnModeFree.addEventListener('click', () => {
-      btnModeFree.classList.add('active');
-      btnModeGuided.classList.remove('active');
-      btnModeChallenge.classList.remove('active');
-      document.getElementById('tab-inspector-btn').click();
-      this.eduGuide.setMode('free');
-    });
+    const btnModeGuided = document.getElementById('btn-mode-guided');
+    const btnModeFree = document.getElementById('btn-mode-free');
+    const btnModeChallenge = document.getElementById('btn-mode-challenge');
 
-    btnModeChallenge.addEventListener('click', () => {
-      btnModeChallenge.classList.add('active');
-      btnModeGuided.classList.remove('active');
-      btnModeFree.classList.remove('active');
-      document.getElementById('tab-challenge-btn').click();
-    });
+    if (btnModeGuided) {
+      btnModeGuided.addEventListener('click', () => {
+        btnModeGuided.classList.add('active');
+        if (btnModeFree) btnModeFree.classList.remove('active');
+        if (btnModeChallenge) btnModeChallenge.classList.remove('active');
+        document.getElementById('tab-edu-btn')?.click();
+        this.eduGuide.setMode('guided');
+      });
+    }
+
+    if (btnModeFree) {
+      btnModeFree.addEventListener('click', () => {
+        btnModeFree.classList.add('active');
+        if (btnModeGuided) btnModeGuided.classList.remove('active');
+        if (btnModeChallenge) btnModeChallenge.classList.remove('active');
+        document.getElementById('tab-inspector-btn')?.click();
+        this.eduGuide.setMode('free');
+      });
+    }
+
+    if (btnModeChallenge) {
+      btnModeChallenge.addEventListener('click', () => {
+        btnModeChallenge.classList.add('active');
+        if (btnModeGuided) btnModeGuided.classList.remove('active');
+        if (btnModeFree) btnModeFree.classList.remove('active');
+        document.getElementById('tab-challenge-btn')?.click();
+      });
+    }
 
     // Mobile Floating Dock Event Handlers
     const btnMobileLeft = document.getElementById('btn-mobile-left');
@@ -836,6 +892,41 @@ class WaveLabApp {
     }
   }
 
+  apply3DTheme(theme) {
+    if (!this.sceneMgr || !this.sceneMgr.scene) return;
+    const scene = this.sceneMgr.scene;
+    if (theme === 'cyberpunk') {
+      if (scene.background) scene.background.set('#120524');
+      if (this.sceneMgr.ambientLight) this.sceneMgr.ambientLight.color.set('#f472b6');
+      if (this.sceneMgr.dirLight) this.sceneMgr.dirLight.color.set('#22d3ee');
+      if (this.waveRenderer && this.waveRenderer.mesh) {
+        this.waveRenderer.mesh.material.color.set('#c084fc');
+      }
+    } else if (theme === 'plasma') {
+      if (scene.background) scene.background.set('#1a0803');
+      if (this.sceneMgr.ambientLight) this.sceneMgr.ambientLight.color.set('#ea580c');
+      if (this.sceneMgr.dirLight) this.sceneMgr.dirLight.color.set('#facc15');
+      if (this.waveRenderer && this.waveRenderer.mesh) {
+        this.waveRenderer.mesh.material.color.set('#fb923c');
+      }
+    } else if (theme === 'emerald') {
+      if (scene.background) scene.background.set('#021a12');
+      if (this.sceneMgr.ambientLight) this.sceneMgr.ambientLight.color.set('#10b981');
+      if (this.sceneMgr.dirLight) this.sceneMgr.dirLight.color.set('#34d399');
+      if (this.waveRenderer && this.waveRenderer.mesh) {
+        this.waveRenderer.mesh.material.color.set('#10b981');
+      }
+    } else {
+      // oceanic default
+      if (scene.background) scene.background.set('#050b14');
+      if (this.sceneMgr.ambientLight) this.sceneMgr.ambientLight.color.set('#ffffff');
+      if (this.sceneMgr.dirLight) this.sceneMgr.dirLight.color.set('#e2e8f0');
+      if (this.waveRenderer && this.waveRenderer.mesh) {
+        this.waveRenderer.mesh.material.color.set('#0284c7');
+      }
+    }
+  }
+
   updateLiveMeasurements() {
     if (!this.receiver) return;
 
@@ -843,6 +934,19 @@ class WaveLabApp {
     const instDisp = WaveMath.evaluateSuperposition(this.sources, this.receiver.position, this.simTime, this.walls, this.slits, this.isRefraction);
     const dispEl = document.getElementById('readout-disp');
     if (dispEl) dispEl.textContent = instDisp.toFixed(2);
+
+    // Real-time Sound Pressure Level (SPL in dB)
+    const splEl = document.getElementById('readout-spl');
+    const splBar = document.getElementById('spl-bar-fill');
+    if (splEl && splBar) {
+      const ampMag = Math.abs(instDisp);
+      // SPL decibel formula: 30 dB to 110 dB
+      const baseSpl = ampMag > 0.0001 ? Math.min(115, Math.max(30, 20 * Math.log10(ampMag * 200 + 1) + 45)) : 30;
+      splEl.textContent = `${baseSpl.toFixed(1)} dB`;
+      const pct = Math.min(100, Math.max(8, ((baseSpl - 30) / 85) * 100));
+      splBar.style.width = `${pct}%`;
+      splBar.style.background = baseSpl > 85 ? '#ef4444' : (baseSpl > 68 ? '#fbbf24' : '#34d399');
+    }
 
     // Two sources interference readout
     if (this.sources.length >= 2 && this.sources[0].active && this.sources[1].active) {
@@ -1062,7 +1166,11 @@ class WaveLabApp {
   }
 }
 
-// Instantiate application on window load
-window.addEventListener('DOMContentLoaded', () => {
+// Instantiate application on window load or immediately if DOM is already ready
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', () => {
+    window.app = new WaveLabApp();
+  });
+} else {
   window.app = new WaveLabApp();
-});
+}

@@ -54,7 +54,14 @@ export class Academic2DMode {
     // 'standing': Standing Superposition Wave (ব্যতিচার ও স্থির তরঙ্গ: 2A*cos(kx)*cos(wt))
     // 'timedomain': Particle Oscillation y vs t at Receiver
     this.waveMotionType = 'traveling';
-    this.waveDirection = 'forward'; // 'forward' (+x) | 'backward' (-x)
+    // Wave Propagation Direction:
+    // 'positive': Propagates strictly along positive x-axis (+x Only)
+    // 'negative': Propagates strictly along negative x-axis (-x Only)
+    // 'both': Propagates symmetrically along both directions (±x)
+    this.waveDirection = 'positive';
+    this.waveformShape = 'sine'; // 'sine' | 'triangle' | 'square' | 'pulse'
+    this.showCaliper = true;
+    this.showEnergy = false;
     this.showParticles = true;
     this.showCrestTroughs = true;
     this.timeHistory = []; // Rolling buffer for y vs t mode
@@ -67,78 +74,65 @@ export class Academic2DMode {
     this.container.style.display = 'none';
 
     this.container.innerHTML = `
-      <!-- Top Studio Navigation Bar -->
-      <div class="a2d-studio-topbar">
-        <div class="a2d-brand-group">
-          <span class="a2d-badge-pulse">📐 2D CLASSROOM STUDIO</span>
-          <h2 class="a2d-studio-title" id="a2d-exp-title">Textbook Wave Superposition & Interference</h2>
+      <!-- 1. Single Ultra-Sleek Studio Ribbon -->
+      <div class="a2d-studio-ribbon">
+        <!-- Far Left: Studio Title -->
+        <div class="a2d-ribbon-left">
+          <span class="a2d-brand-tag">📐 2D Classroom Studio</span>
         </div>
 
-        <!-- Wave Model Toggle (আদর্শ তরঙ্গ vs ব্যবহারিক তরঙ্গ) -->
-        <div class="a2d-wave-model-toggle" id="a2d-model-tabs" title="তরঙ্গ মডেল নির্বাচন করুন">
-          <button class="btn-wave-type active" data-type="ideal" title="Ideal Wave: Constant Amplitude, Zero Energy Loss (আদর্শ তরঙ্গ)">🌟 Ideal (আদর্শ)</button>
-          <button class="btn-wave-type" data-type="practical" title="Practical Wave: 1/r Attenuation (ব্যবহারিক তরঙ্গ)">🌊 Practical (ব্যবহারিক)</button>
+        <!-- Center: Direction, Waveform Shape, Motion, and Graph Mode -->
+        <div class="a2d-ribbon-center">
+          <!-- Direction: +x Only, -x Only, Both -->
+          <div class="a2d-segmented-box" title="তরঙ্গ অভিমুখ (Propagation Direction)">
+            <span class="box-label">দিক:</span>
+            <button class="btn-ribbon-dir active" data-dir="positive" title="+x Positive Direction">▶ +x</button>
+            <button class="btn-ribbon-dir" data-dir="negative" title="-x Negative Direction">◀ -x</button>
+            <button class="btn-ribbon-dir" data-dir="both" title="±x Both Directions">↔ ±x</button>
+          </div>
+
+          <!-- Waveform Shape: Dropdown Selector -->
+          <div class="a2d-segmented-box" title="তরঙ্গরূপ (Waveform Shape)">
+            <span class="box-label">আকৃতি:</span>
+            <select id="a2d-select-waveform" class="a2d-ribbon-select" title="Waveform Shape">
+              <option value="sine" selected>〰️ Sine</option>
+              <option value="triangle">📐 Triangle</option>
+              <option value="square">🔲 Square</option>
+              <option value="pulse">⚡ Pulse</option>
+            </select>
+          </div>
+
+          <!-- Motion Nature: Traveling, Standing, y vs t -->
+          <div class="a2d-segmented-box" id="a2d-motion-tabs" title="গতি প্রকৃতি">
+            <button class="btn-motion-mode active" data-motion="traveling">🌊 Traveling</button>
+            <button class="btn-motion-mode" data-motion="standing">⚡ Standing</button>
+            <button class="btn-motion-mode" data-motion="timedomain">⏱️ y(t)</button>
+          </div>
+
+          <!-- Graph View Mode: Dropdown Selector -->
+          <div class="a2d-segmented-box" title="গ্রাফ মোড (Graph Mode)">
+            <span class="box-label">ভিউ:</span>
+            <select id="a2d-select-graph-mode" class="a2d-ribbon-select" title="Graph View Mode">
+              <option value="stacked" selected>🥞 Stacked</option>
+              <option value="superimposed">📊 Superimposed</option>
+              <option value="resultant">⚡ Resultant</option>
+              <option value="intensity">🌟 Intensity</option>
+            </select>
+          </div>
         </div>
 
-        <!-- Axis Range / Direction Selector (অক্ষ বরাবর দিক নির্বাচন) -->
-        <div class="a2d-axis-selector" id="a2d-axis-tabs" title="অক্ষ দেখার ক্ষেত্র নির্বাচন">
-          <span class="axis-lbl">অক্ষ:</span>
-          <button class="btn-axis-mode" data-axis="negative" title="Negative Axis Only (-x to 0)">◀️ -x Only</button>
-          <button class="btn-axis-mode active" data-axis="both" title="Both Axes (-x to +x)">↔️ Both (±x)</button>
-          <button class="btn-axis-mode" data-axis="positive" title="Positive Axis Only (0 to +x)">▶️ +x Only</button>
-        </div>
-
-        <!-- Motion Nature Selector (প্রগামী চলমান তরঙ্গ vs স্থির ব্যতিচার তরঙ্গ vs কণার স্পন্দন) -->
-        <div class="a2d-motion-selector" id="a2d-motion-tabs" title="তরঙ্গের গতি প্রকৃতি নির্বাচন">
-          <button class="btn-motion-mode active" data-motion="traveling" title="Continuous Progressive Traveling Wave (চলমান প্রগামী তরঙ্গ: ক্রেস্ট-ট্রাফ অনুভূমিক অক্ষ বরাবর গতিশীল)">
-            🌊 Traveling (চলমান প্রগামী)
-          </button>
-          <button class="btn-motion-mode" data-motion="standing" title="Standing Superposition Wave (ব্যতিচার ও স্থির তরঙ্গ: নিস্পন্দ-সুস্পন্দ বিন্দু)">
-            ⚡ Standing (স্থির তরঙ্গ)
-          </button>
-          <button class="btn-motion-mode" data-motion="timedomain" title="Time Domain Graph: y vs t (কণার সময়-সরণ স্পন্দন)">
-            ⏱️ y vs t (কণার স্পন্দন)
-          </button>
-        </div>
-
-        <!-- Wave Flow & Particle Feature Toggles -->
-        <div class="a2d-feature-toggles">
-          <button class="btn-feat-toggle active" id="a2d-toggle-dir" title="Toggle Wave Propagation Direction (+x or -x)">
-            ▶ দিক: +x
-          </button>
-          <button class="btn-feat-toggle active" id="a2d-toggle-particles" title="Toggle Medium Particle Vibration Beads (মাধ্যমের কণা স্পন্দন)">
-            🟢 কণার স্পন্দন
-          </button>
-          <button class="btn-feat-toggle active" id="a2d-toggle-tags" title="Toggle Crest & Trough Marker Tags">
-            🏷️ শীর্ষ/খাঁদ
-          </button>
-        </div>
-
-        <!-- 4 Graph Display Mode Selectors -->
-        <div class="a2d-mode-selector" id="a2d-mode-tabs">
-          <button class="btn-graph-mode active" data-mode="stacked" title="Separate graph for each source + Resultant below them">
-            🥞 Stacked
-          </button>
-          <button class="btn-graph-mode" data-mode="superimposed" title="All sources and resultant on one shared graph">
-            📊 Superimposed
-          </button>
-          <button class="btn-graph-mode" data-mode="resultant" title="Only resultant superposition wave with Nodes & Antinodes">
-            ⚡ Resultant
-          </button>
-          <button class="btn-graph-mode" data-mode="intensity" title="Textbook golden intensity curve and optical screen interferogram">
-            🌟 Intensity
-          </button>
-        </div>
-
-        <div class="a2d-studio-actions">
-          <button class="a2d-btn-action" id="a2d-btn-play" title="Play / Pause Simulation (Space)">⏸ Pause</button>
-          <button class="a2d-btn-action" id="a2d-btn-reset" title="Reset Simulation Time">↻ Reset</button>
-          <button class="a2d-btn-exit" id="a2d-btn-exit" title="Return to 3D Arena">🧊 Return to 3D Arena</button>
+        <!-- Far Right: Tool Toggles & Drawers -->
+        <div class="a2d-ribbon-right">
+          <button class="btn-ribbon-toggle active" id="a2d-btn-caliper" title="Wavelength Caliper (λ)">📐 Caliper</button>
+          <button class="btn-ribbon-toggle" id="a2d-btn-energy" title="Energy Density Overlay">⚡ Energy</button>
+          <button class="btn-ribbon-toggle active" id="a2d-toggle-particles" title="Oscillation Beads">🟢 Beads</button>
+          <button class="btn-drawer-btn" id="a2d-btn-toggle-params" title="Parameters & Formulas Console">⌨️ Params</button>
+          <button class="btn-drawer-btn" id="a2d-btn-toggle-eq" title="Custom Formula Editor">✨ Eq</button>
         </div>
       </div>
 
-      <!-- Custom Wave Equation Banner in 2D Classroom -->
-      <div class="a2d-custom-eq-banner">
+      <!-- 2. Collapsible Custom Formula Editor Drawer -->
+      <div class="a2d-custom-eq-drawer" id="a2d-custom-eq-drawer" style="display: none;">
         <span class="eq-symbol">ƒ(x, t) = </span>
         <input type="text" id="a2d-custom-eq-input" placeholder="e.g. 2.0 * sin(2*x - 4*t) বা A*sin(kx - wt)" value="2.0 * sin(2*x - 4*t)">
         <select id="a2d-custom-eq-templates">
@@ -153,145 +147,105 @@ export class Academic2DMode {
           <option value="2.0 * sin(2*r - 5*t) / (1 + 0.15*r)">8. Radial Ripple: 2·sin(2r - 5t)/(1+0.15r)</option>
           <option value="2.0 * exp(-0.12*abs(x)) * sin(2*x - 4*t)">9. Spatially Damped Wave</option>
         </select>
-        <button id="a2d-custom-eq-apply" class="btn-eq-apply">▶ Apply Formula</button>
+        <button id="a2d-custom-eq-apply" class="btn-eq-apply">▶ Apply</button>
         <button id="a2d-custom-eq-toggle" class="btn-eq-toggle">✨ Custom Eq: OFF</button>
         <span id="a2d-custom-eq-status" class="eq-status-pill"></span>
+        <button class="btn-drawer-close" id="a2d-close-eq-drawer">✕</button>
       </div>
 
-      <!-- Live Parameter Input Console & Formula Blackboard -->
-      <div class="a2d-controls-ribbon">
-        <!-- Direct Keyboard Input Console -->
-        <div class="a2d-param-console">
-          <div class="console-title">⌨️ Direct Keyboard Parameter Controls (মান পরিবর্তন)</div>
-          <div class="console-inputs-grid">
-            <div class="inp-field-group">
-              <label><span class="dot-s1">●</span> Src 1 Freq (f₁):</label>
-              <div class="input-wrap">
-                <input type="number" id="a2d-inp-f1" step="0.05" min="0.1" max="10.0" value="1.20">
-                <span class="u">Hz</span>
-              </div>
-            </div>
-
-            <div class="inp-field-group">
-              <label><span class="dot-s1">●</span> Src 1 Amp (A₁):</label>
-              <div class="input-wrap">
-                <input type="number" id="a2d-inp-a1" step="0.1" min="0.0" max="5.0" value="1.0">
-                <span class="u">arb</span>
-              </div>
-            </div>
-
-            <div class="inp-field-group">
-              <label><span class="dot-s1">●</span> Src 1 Phase (ϕ₁):</label>
-              <div class="input-wrap">
-                <input type="number" id="a2d-inp-p1" step="15" min="-360" max="360" value="0">
-                <span class="u">°</span>
-              </div>
-            </div>
-
-            <div class="inp-field-group">
-              <label><span class="dot-s2">●</span> Src 2 Freq (f₂):</label>
-              <div class="input-wrap">
-                <input type="number" id="a2d-inp-f2" step="0.05" min="0.1" max="10.0" value="1.20">
-                <span class="u">Hz</span>
-              </div>
-            </div>
-
-            <div class="inp-field-group">
-              <label><span class="dot-s2">●</span> Src 2 Amp (A₂):</label>
-              <div class="input-wrap">
-                <input type="number" id="a2d-inp-a2" step="0.1" min="0.0" max="5.0" value="1.0">
-                <span class="u">arb</span>
-              </div>
-            </div>
-
-            <div class="inp-field-group">
-              <label><span class="dot-s2">●</span> Src 2 Phase (ϕ₂):</label>
-              <div class="input-wrap">
-                <input type="number" id="a2d-inp-p2" step="15" min="-360" max="360" value="0">
-                <span class="u">°</span>
-              </div>
-            </div>
-
-            <div class="inp-field-group">
-              <label>🌊 Wave Speed (v):</label>
-              <div class="input-wrap">
-                <input type="number" id="a2d-inp-v" step="0.2" min="0.5" max="20.0" value="3.0">
-                <span class="u">m/s</span>
-              </div>
-            </div>
-
-            <div class="inp-field-group">
-              <label>↔️ Separation (d):</label>
-              <div class="input-wrap">
-                <input type="number" id="a2d-inp-d" step="0.2" min="0.4" max="16.0" value="4.0">
-                <span class="u">m</span>
-              </div>
-            </div>
-
-            <div class="inp-field-group">
-              <label>📏 Screen Dist (D):</label>
-              <div class="input-wrap">
-                <input type="number" id="a2d-inp-dist" step="0.5" min="1.0" max="16.0" value="5.0">
-                <span class="u">m</span>
-              </div>
-            </div>
-
-            <div class="inp-field-group highlight">
-              <label>🎯 Receiver x (x_R):</label>
-              <div class="input-wrap">
-                <input type="number" id="a2d-inp-rx" step="0.1" min="-16.0" max="16.0" value="0.0">
-                <span class="u">m</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Classroom Navigation Quick Buttons -->
-          <div class="console-quick-actions">
-            <span class="quick-label">Fringe Snapper:</span>
-            <button class="a2d-btn-snap" id="a2d-snap-center">🎯 Central Max (m=0)</button>
-            <button class="a2d-btn-snap" id="a2d-snap-pos">▶ +β (Next Maxima)</button>
-            <button class="a2d-btn-snap" id="a2d-snap-neg">◀ -β (Prev Maxima)</button>
-            <button class="a2d-btn-snap" id="a2d-snap-dark">🌑 Minima (β/2 Dark)</button>
-          </div>
+      <!-- 3. Collapsible Parameter Console & Formula Blackboard Drawer -->
+      <div class="a2d-params-drawer" id="a2d-params-drawer" style="display: none;">
+        <div class="a2d-drawer-header">
+          <span class="drawer-title">⌨️ Interactive Parameters & Textbook Formula Blackboard</span>
+          <button class="btn-drawer-close" id="a2d-close-params-drawer" title="Close Drawer">✕ Close</button>
         </div>
+        <div class="a2d-drawer-body">
+          <!-- Parameter Inputs -->
+          <div class="a2d-param-console">
+            <div class="console-inputs-grid">
+              <div class="inp-field-group">
+                <label><span class="dot-s1">●</span> Src 1 Freq (f₁):</label>
+                <div class="input-wrap"><input type="number" id="a2d-inp-f1" step="0.05" min="0.1" max="10.0" value="1.20"><span class="u">Hz</span></div>
+              </div>
+              <div class="inp-field-group">
+                <label><span class="dot-s1">●</span> Src 1 Amp (A₁):</label>
+                <div class="input-wrap"><input type="number" id="a2d-inp-a1" step="0.1" min="0.0" max="5.0" value="1.0"><span class="u">arb</span></div>
+              </div>
+              <div class="inp-field-group">
+                <label><span class="dot-s1">●</span> Src 1 Phase (ϕ₁):</label>
+                <div class="input-wrap"><input type="number" id="a2d-inp-p1" step="15" min="-360" max="360" value="0"><span class="u">°</span></div>
+              </div>
+              <div class="inp-field-group">
+                <label><span class="dot-s2">●</span> Src 2 Freq (f₂):</label>
+                <div class="input-wrap"><input type="number" id="a2d-inp-f2" step="0.05" min="0.1" max="10.0" value="1.20"><span class="u">Hz</span></div>
+              </div>
+              <div class="inp-field-group">
+                <label><span class="dot-s2">●</span> Src 2 Amp (A₂):</label>
+                <div class="input-wrap"><input type="number" id="a2d-inp-a2" step="0.1" min="0.0" max="5.0" value="1.0"><span class="u">arb</span></div>
+              </div>
+              <div class="inp-field-group">
+                <label><span class="dot-s2">●</span> Src 2 Phase (ϕ₂):</label>
+                <div class="input-wrap"><input type="number" id="a2d-inp-p2" step="15" min="-360" max="360" value="0"><span class="u">°</span></div>
+              </div>
+              <div class="inp-field-group">
+                <label>🌊 Wave Speed (v):</label>
+                <div class="input-wrap"><input type="number" id="a2d-inp-v" step="0.2" min="0.5" max="20.0" value="3.0"><span class="u">m/s</span></div>
+              </div>
+              <div class="inp-field-group">
+                <label>↔️ Separation (d):</label>
+                <div class="input-wrap"><input type="number" id="a2d-inp-d" step="0.2" min="0.4" max="16.0" value="4.0"><span class="u">m</span></div>
+              </div>
+              <div class="inp-field-group">
+                <label>📏 Screen Dist (D):</label>
+                <div class="input-wrap"><input type="number" id="a2d-inp-dist" step="0.5" min="1.0" max="16.0" value="5.0"><span class="u">m</span></div>
+              </div>
+              <div class="inp-field-group highlight">
+                <label>🎯 Receiver x (x_R):</label>
+                <div class="input-wrap"><input type="number" id="a2d-inp-rx" step="0.1" min="-16.0" max="16.0" value="0.0"><span class="u">m</span></div>
+              </div>
+            </div>
 
-        <!-- Live Physics Formula Blackboard & Phasor Diagram -->
-        <div class="a2d-formula-blackboard">
-          <div class="blackboard-body">
-            <div class="calc-row">
-              <span class="formula">Path Diff: Δr = |r₂ - r₁| =</span>
-              <strong id="a2d-calc-pathdiff">0.00 m (0.00 λ)</strong>
-            </div>
-            <div class="calc-row">
-              <span class="formula">Phase Diff: Δϕ = (2π/λ)Δr =</span>
-              <strong id="a2d-calc-phasediff">0° (0.00 rad)</strong>
-            </div>
-            <div class="calc-row">
-              <span class="formula">Resultant Amp: A_res = √(A₁² + A₂² + 2A₁A₂cosΔϕ) =</span>
-              <strong id="a2d-calc-ares">2.00 arb</strong>
-            </div>
-            <div class="calc-row">
-              <span class="formula">Fringe Width: β = λD / d =</span>
-              <strong id="a2d-calc-beta">3.12 m</strong>
-            </div>
-            <div style="margin-top: 4px; text-align: center;">
-              <span class="condition-chip" id="a2d-chip-condition">🟢 Constructive Maxima</span>
+            <!-- Snapper Buttons -->
+            <div class="console-quick-actions">
+              <span class="quick-label">Fringe Snapper:</span>
+              <button class="a2d-btn-snap" id="a2d-snap-center">🎯 Central Max (m=0)</button>
+              <button class="a2d-btn-snap" id="a2d-snap-pos">▶ +β (Next Maxima)</button>
+              <button class="a2d-btn-snap" id="a2d-snap-neg">◀ -β (Prev Maxima)</button>
+              <button class="a2d-btn-snap" id="a2d-snap-dark">🌑 Minima (β/2 Dark)</button>
             </div>
           </div>
 
-          <!-- Live Rotating Phasor Widget -->
-          <div class="phasor-widget-box">
-            <canvas id="a2d-phasor-canvas" width="130" height="110"></canvas>
-            <div class="phasor-legend">Phasor Superposition: <span style="color:#38bdf8">A₁</span> + <span style="color:#f43f5e">A₂</span> = <span style="color:#fbbf24">A_res</span></div>
+          <!-- Blackboard & Phasor -->
+          <div class="a2d-formula-blackboard">
+            <div class="blackboard-body">
+              <div class="calc-row"><span>Path Diff: Δr = |r₂ - r₁| =</span><strong id="a2d-calc-pathdiff">0.00 m (0.00 λ)</strong></div>
+              <div class="calc-row"><span>Phase Diff: Δϕ = (2π/λ)Δr =</span><strong id="a2d-calc-phasediff">0° (0.00 rad)</strong></div>
+              <div class="calc-row"><span>Resultant Amp: A_res = √(A₁² + A₂² + 2A₁A₂cosΔϕ) =</span><strong id="a2d-calc-ares">2.00 arb</strong></div>
+              <div class="calc-row"><span>Fringe Width: β = λD / d =</span><strong id="a2d-calc-beta">3.12 m</strong></div>
+              <div style="margin-top: 4px; text-align: center;"><span class="condition-chip" id="a2d-chip-condition">🟢 Constructive Maxima</span></div>
+            </div>
+            <div class="phasor-widget-box">
+              <canvas id="a2d-phasor-canvas" width="130" height="110"></canvas>
+              <div class="phasor-legend">Phasor Superposition: <span style="color:#38bdf8">A₁</span> + <span style="color:#f43f5e">A₂</span> = <span style="color:#fbbf24">A_res</span></div>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Main Dynamic Canvas Area -->
+      <!-- 4. Main Dynamic Canvas Area (Maximized Full Remaining Viewport!) -->
       <div class="a2d-canvas-main-viewport" id="a2d-canvas-viewport">
+        <!-- Live Caliper HUD Overlay (Top-Right Glass Pill) -->
+        <div class="a2d-caliper-hud" id="a2d-caliper-hud">
+          <span class="hud-item">📏 <strong>λ:</strong> <span id="hud-val-lambda">2.50m</span></span>
+          <span class="hud-item">⏱️ <strong>T:</strong> <span id="hud-val-period">0.83s</span></span>
+          <span class="hud-item">⚡ <strong>v:</strong> <span id="hud-val-speed">3.00 m/s</span></span>
+          <span class="hud-item">📍 <strong>দিক:</strong> <span id="hud-val-dir">+x ধনাত্মক</span></span>
+        </div>
+
         <canvas id="a2d-studio-canvas"></canvas>
+
         <div class="a2d-hint-banner">
-          🖱️ <strong>Interactive Classroom:</strong> Click anywhere on the graph to jump Receiver Sensor (R) | Hover to inspect coordinates (x, y, Ψ)
+          🖱️ Click graph to jump Receiver Sensor (R) | Hover to inspect coordinates | Press <strong>Esc</strong> or <strong>1</strong> for 3D Arena
         </div>
       </div>
     `;
@@ -309,33 +263,100 @@ export class Academic2DMode {
   }
 
   setupListeners() {
-    // Wave Model Toggle in 2D
-    const modelTabs = document.getElementById('a2d-model-tabs');
-    if (modelTabs) {
-      modelTabs.addEventListener('click', (e) => {
-        const btn = e.target.closest('.btn-wave-type');
-        if (!btn) return;
-        const type = btn.getAttribute('data-type');
-        if (type && this.app.setWaveModel) {
-          this.app.setWaveModel(type);
-        }
+    // Return to 3D Arena Button
+    const btnBack = document.getElementById('a2d-btn-back');
+    if (btnBack) {
+      btnBack.addEventListener('click', () => this.setMode('3d'));
+    }
+
+    // Parameters Drawer Toggle
+    const btnToggleParams = document.getElementById('a2d-btn-toggle-params');
+    const drawerParams = document.getElementById('a2d-params-drawer');
+    const btnCloseParams = document.getElementById('a2d-close-params-drawer');
+    if (btnToggleParams && drawerParams) {
+      btnToggleParams.addEventListener('click', () => {
+        const isOpen = drawerParams.style.display !== 'none';
+        drawerParams.style.display = isOpen ? 'none' : 'flex';
+        drawerParams.classList.toggle('open', !isOpen);
+        btnToggleParams.classList.toggle('active', !isOpen);
+        this.resizeCanvases();
+      });
+    }
+    if (btnCloseParams && drawerParams) {
+      btnCloseParams.addEventListener('click', () => {
+        drawerParams.style.display = 'none';
+        drawerParams.classList.remove('open');
+        if (btnToggleParams) btnToggleParams.classList.remove('active');
+        this.resizeCanvases();
       });
     }
 
-    // Axis Selector in 2D
-    const axisTabs = document.getElementById('a2d-axis-tabs');
-    if (axisTabs) {
-      axisTabs.addEventListener('click', (e) => {
-        const btn = e.target.closest('.btn-axis-mode');
-        if (!btn) return;
-        const axis = btn.getAttribute('data-axis');
-        if (axis) {
-          this.setAxisDomain(axis);
-        }
+    // Custom Formula Drawer Toggle
+    const btnToggleEq = document.getElementById('a2d-btn-toggle-eq');
+    const drawerEq = document.getElementById('a2d-custom-eq-drawer');
+    const btnCloseEq = document.getElementById('a2d-close-eq-drawer');
+    if (btnToggleEq && drawerEq) {
+      btnToggleEq.addEventListener('click', () => {
+        const isOpen = drawerEq.style.display !== 'none';
+        drawerEq.style.display = isOpen ? 'none' : 'flex';
+        drawerEq.classList.toggle('open', !isOpen);
+        btnToggleEq.classList.toggle('active', !isOpen);
+        this.resizeCanvases();
+      });
+    }
+    if (btnCloseEq && drawerEq) {
+      btnCloseEq.addEventListener('click', () => {
+        drawerEq.style.display = 'none';
+        drawerEq.classList.remove('open');
+        if (btnToggleEq) btnToggleEq.classList.remove('active');
+        this.resizeCanvases();
       });
     }
 
-    // Mode tabs
+    // Direction Selector (+x Only, -x Only, Both)
+    document.querySelectorAll('.btn-ribbon-dir').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.btn-ribbon-dir').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.setWaveDirection(btn.getAttribute('data-dir'));
+      });
+    });
+
+    // Waveform Shape Selector (Dropdown + buttons)
+    const selWaveform = document.getElementById('a2d-select-waveform');
+    if (selWaveform) {
+      selWaveform.addEventListener('change', (e) => {
+        this.waveformShape = e.target.value || 'sine';
+      });
+    }
+    document.querySelectorAll('.btn-waveform-shape').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.btn-waveform-shape').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.waveformShape = btn.getAttribute('data-shape') || 'sine';
+      });
+    });
+
+    // Motion Nature Selector
+    const motionTabs = document.getElementById('a2d-motion-tabs');
+    if (motionTabs) {
+      motionTabs.addEventListener('click', (e) => {
+        const btn = e.target.closest('.btn-motion-mode');
+        if (!btn) return;
+        motionTabs.querySelectorAll('.btn-motion-mode').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.waveMotionType = btn.getAttribute('data-motion') || 'traveling';
+      });
+    }
+
+    // Graph Mode Selector (Dropdown + tabs)
+    const selGraphMode = document.getElementById('a2d-select-graph-mode');
+    if (selGraphMode) {
+      selGraphMode.addEventListener('change', (e) => {
+        this.graphMode = e.target.value || 'stacked';
+        this.resizeCanvases();
+      });
+    }
     const modeTabs = document.getElementById('a2d-mode-tabs');
     if (modeTabs) {
       modeTabs.addEventListener('click', (e) => {
@@ -348,28 +369,65 @@ export class Academic2DMode {
       });
     }
 
-    // Play/Pause and Reset
-    const btnPlay = document.getElementById('a2d-btn-play');
-    if (btnPlay) {
-      btnPlay.addEventListener('click', () => {
-        this.app.isPlaying = !this.app.isPlaying;
-        btnPlay.textContent = this.app.isPlaying ? '⏸ Pause' : '▶ Play';
-        if (this.app.audioEngine) this.app.audioEngine.setSimulationPaused(!this.app.isPlaying);
+    // Step Forward +0.1s
+    const btnStep = document.getElementById('a2d-btn-step');
+    if (btnStep) {
+      btnStep.addEventListener('click', () => {
+        this.app.simTime += 0.1;
+        this.update(this.app.simTime);
       });
     }
 
-    const btnReset = document.getElementById('a2d-btn-reset');
-    if (btnReset) {
-      btnReset.addEventListener('click', () => {
-        this.app.simTime = 0;
-        if (this.app.oscilloscope) this.app.oscilloscope.clear();
+    // Snapshot PNG Export
+    const btnSnapshot = document.getElementById('a2d-btn-snapshot');
+    if (btnSnapshot) {
+      btnSnapshot.addEventListener('click', () => {
+        if (this.mainCanvas) {
+          const url = this.mainCanvas.toDataURL('image/png');
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `wave_lab_2d_classroom_${Date.now()}.png`;
+          a.click();
+        }
       });
     }
 
-    // Exit 2D Mode
-    const btnExit = document.getElementById('a2d-btn-exit');
-    if (btnExit) {
-      btnExit.addEventListener('click', () => this.setMode('3d'));
+    // Caliper Tool Toggle
+    const btnCaliper = document.getElementById('a2d-btn-caliper');
+    if (btnCaliper) {
+      btnCaliper.addEventListener('click', () => {
+        this.showCaliper = !this.showCaliper;
+        btnCaliper.classList.toggle('active', this.showCaliper);
+        const hud = document.getElementById('a2d-caliper-hud');
+        if (hud) hud.style.display = this.showCaliper ? 'flex' : 'none';
+      });
+    }
+
+    // Energy Curve Toggle
+    const btnEnergy = document.getElementById('a2d-btn-energy');
+    if (btnEnergy) {
+      btnEnergy.addEventListener('click', () => {
+        this.showEnergy = !this.showEnergy;
+        btnEnergy.classList.toggle('active', this.showEnergy);
+      });
+    }
+
+    // Medium particles toggle
+    const btnToggleParticles = document.getElementById('a2d-toggle-particles');
+    if (btnToggleParticles) {
+      btnToggleParticles.addEventListener('click', () => {
+        this.showParticles = !this.showParticles;
+        btnToggleParticles.classList.toggle('active', this.showParticles);
+      });
+    }
+
+    // Crest / Trough tags toggle
+    const btnToggleTags = document.getElementById('a2d-toggle-tags');
+    if (btnToggleTags) {
+      btnToggleTags.addEventListener('click', () => {
+        this.showCrestTroughs = !this.showCrestTroughs;
+        btnToggleTags.classList.toggle('active', this.showCrestTroughs);
+      });
     }
 
     // Custom Equation in 2D Classroom
@@ -412,52 +470,11 @@ export class Academic2DMode {
       });
     }
 
-    if (eqApply) {
-      eqApply.addEventListener('click', applyCustomEquation);
-    }
+    if (eqApply) eqApply.addEventListener('click', applyCustomEquation);
 
     if (eqInput) {
       eqInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') applyCustomEquation();
-      });
-    }
-
-    // Motion nature selector: Traveling vs Standing vs TimeDomain
-    const motionTabs = document.getElementById('a2d-motion-tabs');
-    if (motionTabs) {
-      motionTabs.addEventListener('click', (e) => {
-        const btn = e.target.closest('.btn-motion-mode');
-        if (!btn) return;
-        motionTabs.querySelectorAll('.btn-motion-mode').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        this.waveMotionType = btn.getAttribute('data-motion') || 'traveling';
-      });
-    }
-
-    // Direction toggle (+x / -x)
-    const btnToggleDir = document.getElementById('a2d-toggle-dir');
-    if (btnToggleDir) {
-      btnToggleDir.addEventListener('click', () => {
-        this.waveDirection = (this.waveDirection === 'forward') ? 'backward' : 'forward';
-        btnToggleDir.textContent = (this.waveDirection === 'forward') ? '▶ দিক: +x' : '◀ দিক: -x';
-      });
-    }
-
-    // Medium particles toggle
-    const btnToggleParticles = document.getElementById('a2d-toggle-particles');
-    if (btnToggleParticles) {
-      btnToggleParticles.addEventListener('click', () => {
-        this.showParticles = !this.showParticles;
-        btnToggleParticles.classList.toggle('active', this.showParticles);
-      });
-    }
-
-    // Crest / Trough tags toggle
-    const btnToggleTags = document.getElementById('a2d-toggle-tags');
-    if (btnToggleTags) {
-      btnToggleTags.addEventListener('click', () => {
-        this.showCrestTroughs = !this.showCrestTroughs;
-        btnToggleTags.classList.toggle('active', this.showCrestTroughs);
       });
     }
 
@@ -536,6 +553,33 @@ export class Academic2DMode {
     tabs.forEach(btn => {
       btn.classList.toggle('active', btn.getAttribute('data-type') === model);
     });
+  }
+
+  setWaveDirection(dir) {
+    this.waveDirection = dir || 'positive';
+    const hudDir = document.getElementById('hud-val-dir');
+    if (hudDir) {
+      if (this.waveDirection === 'positive') hudDir.textContent = '+x ধনাত্মক';
+      else if (this.waveDirection === 'negative') hudDir.textContent = '-x ঋণাত্মক';
+      else hudDir.textContent = '±x উভয় দিক';
+    }
+  }
+
+  evalWaveShape(theta, shape = this.waveformShape || 'sine') {
+    const norm = ((theta % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    switch (shape) {
+      case 'triangle':
+        return (2 / Math.PI) * Math.asin(Math.sin(theta));
+      case 'square':
+        return Math.sin(theta) >= 0 ? 1.0 : -1.0;
+      case 'pulse': {
+        const diff = norm - Math.PI;
+        return Math.exp(-(diff * diff) / 0.5) * Math.cos(theta * 2);
+      }
+      case 'sine':
+      default:
+        return Math.sin(theta);
+    }
   }
 
   setAxisDomain(domain) {
@@ -689,6 +733,7 @@ export class Academic2DMode {
 
     if (mode === '2d') {
       this.active = true;
+      document.body.classList.add('classroom-2d-active');
       if (this.container) this.container.style.display = 'flex';
       if (viewport3d) viewport3d.style.display = 'none'; // Completely hide 3D arena
       if (btn2d) btn2d.classList.add('active');
@@ -698,6 +743,7 @@ export class Academic2DMode {
       this.resizeCanvases();
     } else {
       this.active = false;
+      document.body.classList.remove('classroom-2d-active');
       if (this.container) this.container.style.display = 'none';
       if (viewport3d) viewport3d.style.display = 'block'; // Restore 3D arena
       if (btn3d) btn3d.classList.add('active');
@@ -812,7 +858,42 @@ export class Academic2DMode {
     const k2 = (2 * Math.PI * f2) / Math.max(0.2, v2);
     const w2 = 2 * Math.PI * f2;
 
-    const sign = (this.waveDirection === 'backward') ? 1 : -1;
+    const s1Pos = s1 ? (s1.position.x || 0) : 0;
+    const s2Pos = (s2 && s2.position) ? (s2.position.x || 0) : 0;
+
+    // Helper to evaluate a directional progressive wave from a source at xs
+    const evalDirectionalWave = (x, xs, k, w, phi, amp) => {
+      let d = 0;
+      if (this.waveDirection === 'positive') {
+        // Strictly propagating along +x only
+        if (x < xs) return 0;
+        d = x - xs;
+      } else if (this.waveDirection === 'negative') {
+        // Strictly propagating along -x only
+        if (x > xs) return 0;
+        d = xs - x;
+      } else {
+        // Symmetrically propagating both ways
+        d = Math.abs(x - xs);
+      }
+      const theta = k * d - w * simTime + phi;
+      return amp * this.evalWaveShape(theta, this.waveformShape);
+    };
+
+    // Helper for standing wave
+    const evalDirectionalStanding = (x, xs, k, w, phi, amp) => {
+      let d = 0;
+      if (this.waveDirection === 'positive') {
+        if (x < xs) return 0;
+        d = x - xs;
+      } else if (this.waveDirection === 'negative') {
+        if (x > xs) return 0;
+        d = xs - x;
+      } else {
+        d = Math.abs(x - xs);
+      }
+      return 2 * amp * Math.cos(k * d) * Math.cos(w * simTime + phi);
+    };
 
     for (let i = 0; i < this.sampleCount; i++) {
       const x = this.xMin + i * dx;
@@ -828,16 +909,23 @@ export class Academic2DMode {
         y2 = 0;
         intensity = psi * psi;
       } else if (this.waveMotionType === 'traveling') {
-        // Continuous Progressive Traveling Wave: y(x,t) = A*sin(kx -/+ wt + phi)
-        // Crests and troughs physically travel horizontally across the x-axis!
-        y1 = A1 * Math.sin(k1 * x + sign * w1 * simTime + phi1);
+        // Continuous Progressive Traveling Wave with user-selected direction & waveform shape
+        y1 = evalDirectionalWave(x, s1Pos, k1, w1, phi1, A1);
         if (s2 && s2.active) {
-          y2 = A2 * Math.sin(k2 * x + sign * w2 * simTime + phi2);
+          y2 = evalDirectionalWave(x, s2Pos, k2, w2, phi2, A2);
+        }
+        psi = y1 + y2;
+        intensity = psi * psi;
+      } else if (this.waveMotionType === 'standing') {
+        // Standing Wave with user-selected direction
+        y1 = evalDirectionalStanding(x, s1Pos, k1, w1, phi1, A1);
+        if (s2 && s2.active) {
+          y2 = evalDirectionalStanding(x, s2Pos, k2, w2, phi2, A2);
         }
         psi = y1 + y2;
         intensity = psi * psi;
       } else {
-        // Standing / Point Source Interference Mode
+        // 2D Point Source Superposition
         const targetPos = { x, y: 0, z: zR };
         psi = WaveMath.evaluateSuperposition(sources, targetPos, simTime, walls, slits, isRefraction);
         if (s1 && s1.active) y1 = WaveMath.evaluatePointSource(s1, targetPos, simTime, 0.4, isRefraction);
@@ -870,14 +958,40 @@ export class Academic2DMode {
     if (WaveMath.customEquation && WaveMath.customEquation.active && WaveMath.customEquation.engine) {
       recvSample = WaveMath.customEquation.engine.evaluate(rx, 0, simTime, Math.abs(rx));
     } else if (this.waveMotionType === 'traveling') {
-      recvSample = A1 * Math.sin(k1 * rx + sign * w1 * simTime + phi1);
-      if (s2 && s2.active) recvSample += A2 * Math.sin(k2 * rx + sign * w2 * simTime + phi2);
+      recvSample = evalDirectionalWave(rx, s1Pos, k1, w1, phi1, A1);
+      if (s2 && s2.active) recvSample += evalDirectionalWave(rx, s2Pos, k2, w2, phi2, A2);
+    } else if (this.waveMotionType === 'standing') {
+      recvSample = evalDirectionalStanding(rx, s1Pos, k1, w1, phi1, A1);
+      if (s2 && s2.active) recvSample += evalDirectionalStanding(rx, s2Pos, k2, w2, phi2, A2);
     } else {
       recvSample = WaveMath.evaluateSuperposition(sources, { x: rx, y: 0, z: zR }, simTime, walls, slits, isRefraction);
     }
 
     this.timeHistory.push({ t: simTime, y: recvSample });
     if (this.timeHistory.length > 250) this.timeHistory.shift();
+
+    // Live Clock & Simulation Controls Sync
+    const timeEl = document.getElementById('a2d-time-display');
+    if (timeEl) timeEl.textContent = `⏱ ${simTime.toFixed(2)}s`;
+    const playBtn = document.getElementById('a2d-btn-play');
+    if (playBtn) {
+      playBtn.textContent = this.app.isPlaying ? '⏸ Pause' : '▶ Play';
+      playBtn.classList.toggle('paused', !this.app.isPlaying);
+    }
+
+    // Live Caliper HUD Readouts
+    const hudLambda = document.getElementById('hud-val-lambda');
+    if (hudLambda) hudLambda.textContent = `${lambda.toFixed(2)}m`;
+    const hudPeriod = document.getElementById('hud-val-period');
+    if (hudPeriod && f1 > 0) hudPeriod.textContent = `${(1 / f1).toFixed(2)}s`;
+    const hudSpeed = document.getElementById('hud-val-speed');
+    if (hudSpeed) hudSpeed.textContent = `${v1.toFixed(2)} m/s`;
+    const hudDir = document.getElementById('hud-val-dir');
+    if (hudDir) {
+      if (this.waveDirection === 'positive') hudDir.textContent = '+x ধনাত্মক';
+      else if (this.waveDirection === 'negative') hudDir.textContent = '-x ঋণাত্মক';
+      else hudDir.textContent = '±x উভয় দিক';
+    }
 
     // Update Blackboard Math & Calculations
     this.updateBlackboardMath(s1, s2, receiver, lambda, D, d, beta, simTime);
@@ -1218,6 +1332,103 @@ export class Academic2DMode {
   }
 
   /* =========================================================================
+     WAVELENGTH CALIPER GAUGE (তরঙ্গদৈর্ঘ্য ক্যালিপার পরিমাপক বন্ধনী)
+     ========================================================================= */
+  drawCaliperBracket(ctx, toPxX, toPxY, midY) {
+    const s1 = this.app.sources ? this.app.sources[0] : null;
+    const lambda = s1 ? (s1.speed || 3.0) / (s1.frequency || 1.0) : 2.5;
+
+    // Position caliper comfortably on screen
+    let xStart = (this.axisDomain === 'positive') ? 1.0 : (this.axisDomain === 'negative' ? -lambda - 2 : -lambda / 2);
+    xStart = Math.max(this.xMin + 0.5, Math.min(this.xMax - lambda - 0.5, xStart));
+    const xEnd = xStart + lambda;
+
+    if (xStart < this.xMin || xEnd > this.xMax) return;
+
+    const px0 = toPxX(xStart);
+    const px1 = toPxX(xEnd);
+    const bracketY = midY - 62;
+
+    ctx.save();
+    ctx.strokeStyle = '#38bdf8';
+    ctx.fillStyle = '#38bdf8';
+    ctx.lineWidth = 2;
+
+    // Horizontal bracket line
+    ctx.beginPath();
+    ctx.moveTo(px0, bracketY);
+    ctx.lineTo(px1, bracketY);
+    ctx.stroke();
+
+    // End vertical caliper ticks
+    ctx.beginPath();
+    ctx.moveTo(px0, bracketY - 8);
+    ctx.lineTo(px0, bracketY + 8);
+    ctx.moveTo(px1, bracketY - 8);
+    ctx.lineTo(px1, bracketY + 8);
+    ctx.stroke();
+
+    // Arrows
+    const aSize = 5;
+    ctx.beginPath();
+    ctx.moveTo(px0 + aSize, bracketY - aSize);
+    ctx.lineTo(px0, bracketY);
+    ctx.lineTo(px0 + aSize, bracketY + aSize);
+    ctx.moveTo(px1 - aSize, bracketY - aSize);
+    ctx.lineTo(px1, bracketY);
+    ctx.lineTo(px1 - aSize, bracketY + aSize);
+    ctx.stroke();
+
+    // Badge label
+    const badgeW = 150;
+    const badgeH = 20;
+    const midPx = (px0 + px1) / 2;
+    ctx.fillStyle = 'rgba(7, 11, 20, 0.92)';
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 1.2;
+    ctx.fillRect(midPx - badgeW / 2, bracketY - badgeH - 4, badgeW, badgeH);
+    ctx.strokeRect(midPx - badgeW / 2, bracketY - badgeH - 4, badgeW, badgeH);
+
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`📐 λ = ${lambda.toFixed(2)} m (তরঙ্গদৈর্ঘ্য)`, midPx, bracketY - 9);
+    ctx.restore();
+  }
+
+  /* =========================================================================
+     ENERGY DENSITY OVERLAY CURVE (তরঙ্গ শক্তি ঘনত্ব লেখচিত্র)
+     ========================================================================= */
+  drawEnergyCurve(ctx, samples, toPxX, midY, botY) {
+    if (!samples || samples.length < 2) return;
+    ctx.save();
+    ctx.strokeStyle = '#f59e0b';
+    ctx.fillStyle = 'rgba(245, 158, 11, 0.18)';
+    ctx.lineWidth = 1.5;
+
+    const baseH = (botY - midY) * 0.72;
+    ctx.beginPath();
+    for (let i = 0; i < samples.length; i++) {
+      const px = toPxX(samples[i].x);
+      const en = Math.min(1, Math.max(0, samples[i].intensity || 0));
+      const py = botY - en * baseH;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.lineTo(toPxX(samples[samples.length - 1].x), botY);
+    ctx.lineTo(toPxX(samples[0].x), botY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#fbbf24';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('⚡ Energy Density E(x) ∝ Ψ²', 16, botY - 8);
+    ctx.restore();
+  }
+
+  /* =========================================================================
      TIME DOMAIN GRAPH: y vs t (কণার সময়-সরণ স্পন্দন)
      ========================================================================= */
   renderTimeDomainGraph(rx) {
@@ -1337,7 +1548,6 @@ export class Academic2DMode {
         ctx.shadowColor = color;
         ctx.shadowBlur = 8;
       }
-      const toPxY = (v) => midY - (v / 2.2) * (rowHeight * 0.38);
 
       for (let i = 0; i < samples.length; i++) {
         const px = toPxX(samples[i].x);
@@ -1400,6 +1610,8 @@ export class Academic2DMode {
       if (isResultant) {
         this.drawMediumParticles(ctx, samples, toPxX, toPxY, rx);
         this.drawCrestTroughMarkers(ctx, samples, toPxX, toPxY);
+        if (this.showCaliper) this.drawCaliperBracket(ctx, toPxX, toPxY, midY);
+        if (this.showEnergy) this.drawEnergyCurve(ctx, samples, toPxX, midY, botY);
       }
     };
 
@@ -1511,6 +1723,8 @@ export class Academic2DMode {
 
     this.drawMediumParticles(ctx, samples, toPxX, toPxY, rx);
     this.drawCrestTroughMarkers(ctx, samples, toPxX, toPxY);
+    if (this.showCaliper) this.drawCaliperBracket(ctx, toPxX, toPxY, midY);
+    if (this.showEnergy) this.drawEnergyCurve(ctx, samples, toPxX, midY, h - 20);
 
     // Legend
     ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
@@ -1624,6 +1838,11 @@ export class Academic2DMode {
         ctx.fillText('A', px, curr > 0 ? py - 8 : py + 16);
       }
     }
+
+    this.drawMediumParticles(ctx, samples, toPxX, toPxY, rx);
+    this.drawCrestTroughMarkers(ctx, samples, toPxX, toPxY);
+    if (this.showCaliper) this.drawCaliperBracket(ctx, toPxX, toPxY, midY);
+    if (this.showEnergy) this.drawEnergyCurve(ctx, samples, toPxX, midY, h - 20);
 
     if (rx >= this.xMin && rx <= this.xMax) {
       const recvPx = toPxX(rx);

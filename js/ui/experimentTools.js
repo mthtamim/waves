@@ -30,16 +30,84 @@ export class ExperimentTools {
   }
 
   /**
-   * Universal keyboard shortcuts (Escape exits presentation mode, Ctrl+Z undo, Ctrl+Y redo)
+   * Universal keyboard shortcuts and presentation bindings
    */
   setupKeyboardShortcuts() {
     window.addEventListener('keydown', (e) => {
       // Don't intercept when user is actively typing in an input
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
 
-      // Escape to exit Presentation Mode
-      if (e.key === 'Escape' && this.isPresentationMode) {
-        this.togglePresentationMode();
+      // Escape to exit Presentation Mode or close any active modal
+      if (e.key === 'Escape') {
+        let modalClosed = false;
+        ['modal-glossary', 'modal-formula', 'modal-custom-eq'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el && el.style.display !== 'none' && el.style.display !== '') {
+            el.style.display = 'none';
+            modalClosed = true;
+          }
+        });
+        if (this.isPresentationMode) {
+          this.togglePresentationMode();
+          modalClosed = true;
+        }
+        if (this.app.academic2D && this.app.academic2D.active) {
+          this.app.academic2D.setMode('3d');
+          modalClosed = true;
+        }
+        if (modalClosed) {
+          e.preventDefault();
+          return;
+        }
+      }
+
+      // Space: Play / Pause
+      if (e.code === 'Space') {
+        e.preventDefault();
+        const playBtn = document.getElementById('btn-play');
+        if (playBtn) playBtn.click();
+        return;
+      }
+
+      // R / r: Reset
+      if ((e.key === 'r' || e.key === 'R') && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        const resetBtn = document.getElementById('btn-reset');
+        if (resetBtn) resetBtn.click();
+        return;
+      }
+
+      // M / m: Mute / Unmute
+      if ((e.key === 'm' || e.key === 'M') && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        const muteBtn = document.getElementById('btn-audio-toggle');
+        if (muteBtn) muteBtn.click();
+        return;
+      }
+
+      // F / f: Focus camera on selected object
+      if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        const sel = this.app.rightPanel ? this.app.rightPanel.selectedObject : null;
+        if (sel && sel.dataRef && this.app.sceneMgr && this.app.sceneMgr.controls) {
+          const pos = sel.dataRef.position;
+          this.app.sceneMgr.controls.target.set(pos.x, 0, pos.z);
+          this.app.sceneMgr.controls.update();
+        }
+        return;
+      }
+
+      // 1: Switch to 3D Arena
+      if (e.key === '1' && !e.ctrlKey && !e.metaKey) {
+        const btn3D = document.getElementById('btn-dim-3d');
+        if (btn3D) btn3D.click();
+        return;
+      }
+
+      // 2: Switch to 2D Classroom
+      if (e.key === '2' && !e.ctrlKey && !e.metaKey) {
+        const btn2D = document.getElementById('btn-dim-2d');
+        if (btn2D) btn2D.click();
         return;
       }
 
@@ -59,7 +127,7 @@ export class ExperimentTools {
       }
     });
 
-    // Also bind click on floating exit presentation button
+    // Bind click on floating exit presentation button
     const btnExit = document.getElementById('btn-exit-presentation');
     if (btnExit) {
       btnExit.addEventListener('click', () => {
@@ -217,35 +285,75 @@ export class ExperimentTools {
   }
 
   /**
-   * Presentation Mode (Distraction-Free)
+   * Presentation Mode (Distraction-Free Fullscreen & Clean Canvas)
    */
-  togglePresentationMode() {
+  async togglePresentationMode() {
     this.isPresentationMode = !this.isPresentationMode;
     document.body.classList.toggle('presentation-mode', this.isPresentationMode);
-    
+
+    try {
+      if (this.isPresentationMode) {
+        if (document.documentElement.requestFullscreen && !document.fullscreenElement) {
+          await document.documentElement.requestFullscreen().catch(() => {});
+        }
+      } else {
+        if (document.exitFullscreen && document.fullscreenElement) {
+          await document.exitFullscreen().catch(() => {});
+        }
+      }
+    } catch (_) {}
+
     // Trigger window resize to refit canvas
     setTimeout(() => {
       window.dispatchEvent(new Event('resize'));
+      if (this.app.sceneMgr) this.app.sceneMgr.onWindowResize();
+      if (this.app.academic2D && this.app.academic2D.active) this.app.academic2D.resizeCanvases();
+      if (this.app.oscilloscope) this.app.oscilloscope.resize();
     }, 150);
 
     return this.isPresentationMode;
   }
 
   /**
-   * Take High-Res Snapshot of 3D Canvas
+   * Take High-Res Snapshot of Active Canvas (Supports 3D Arena & 2D Classroom Studio)
    */
   takeSnapshot() {
-    const renderer = this.app.sceneMgr.renderer;
-    if (!renderer) return;
+    let dataUrl = null;
+    let filename = `wave_lab_snapshot_${Date.now()}.png`;
 
-    // Force a fresh render
-    this.app.sceneMgr.render();
-    const dataUrl = renderer.domElement.toDataURL('image/png');
+    // 1. Check if 2D Classroom Studio is currently active
+    if (this.app.academic2D && this.app.academic2D.active && this.app.academic2D.mainCanvas) {
+      try {
+        dataUrl = this.app.academic2D.mainCanvas.toDataURL('image/png');
+        filename = `wave_lab_2D_classroom_${Date.now()}.png`;
+      } catch (err) {
+        console.warn('2D snapshot failed:', err);
+      }
+    }
+
+    // 2. Otherwise capture 3D WebGL Arena
+    if (!dataUrl) {
+      const renderer = this.app.sceneMgr ? this.app.sceneMgr.renderer : null;
+      if (!renderer) return;
+      try {
+        // Force a fresh render
+        this.app.sceneMgr.render();
+        dataUrl = renderer.domElement.toDataURL('image/png');
+      } catch (err) {
+        console.warn('3D snapshot failed:', err);
+      }
+    }
+
+    if (!dataUrl) return;
 
     const link = document.createElement('a');
-    link.download = `wave_lab_snapshot_${Date.now()}.png`;
+    link.download = filename;
     link.href = dataUrl;
     link.click();
+
+    if (this.app.showCelebrationToast) {
+      this.app.showCelebrationToast('📸 Snapshot Saved', `Saved as ${filename}`);
+    }
   }
 
   /**
@@ -259,48 +367,6 @@ export class ExperimentTools {
     this.app.waveRenderer.fieldMesh.geometry.dispose();
     this.app.waveRenderer.setupAmplitudeField();
     return this.isLowPowerMode;
-  }
-
-  /**
-   * Keyboard shortcuts
-   */
-  setupKeyboardShortcuts() {
-    window.addEventListener('keydown', (e) => {
-      // Don't capture when typing in text/number inputs
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') {
-        return;
-      }
-
-      if (e.code === 'Space') {
-        e.preventDefault();
-        const playBtn = document.getElementById('btn-play');
-        if (playBtn) playBtn.click();
-      } else if (e.key === 'r' || e.key === 'R') {
-        const resetBtn = document.getElementById('btn-reset');
-        if (resetBtn) resetBtn.click();
-      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
-        e.preventDefault();
-        if (e.shiftKey) {
-          this.redo();
-        } else {
-          this.undo();
-        }
-      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) {
-        e.preventDefault();
-        this.redo();
-      } else if (e.key === 'm' || e.key === 'M') {
-        const muteBtn = document.getElementById('btn-audio-toggle');
-        if (muteBtn) muteBtn.click();
-      } else if (e.key === 'f' || e.key === 'F') {
-        // Focus camera on selected object
-        const sel = this.app.rightPanel.selectedObject;
-        if (sel && sel.dataRef) {
-          const pos = sel.dataRef.position;
-          this.app.sceneMgr.controls.target.set(pos.x, 0, pos.z);
-          this.app.sceneMgr.controls.update();
-        }
-      }
-    });
   }
 
   /**
